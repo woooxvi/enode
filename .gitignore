@@ -1,0 +1,6 @@
+/.svn
+/.vs
+/packages
+obj
+bin
+push package.bat

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+	<AssemblyVersion>3.0.2.11</AssemblyVersion>
+    <FileVersion>3.0.2.11</FileVersion>
+    <Company>小球迷</Company>
+    <Version>3.0.2.11</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="push package.bat" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ECommon" Version="2.6.4" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="7.0.2" />
+  </ItemGroup>
+
+</Project>
