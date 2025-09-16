@@ -4,3 +4,4 @@
 obj
 bin
 push package.bat
+/src/NuGetConfig.ini
