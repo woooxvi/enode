@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ENode" Version="3.0.2.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LeraySportAmateurMatch.DAL.Memory\LeraySportAmateurMatch.DAL.Memory.csproj" />
+    <ProjectReference Include="..\LeraySportAmateurMatch.DAL.Redis\LeraySportAmateurMatch.DAL.Redis.csproj" />
+    <ProjectReference Include="..\LeraySportAmateurMatch.SystemContract\LeraySportAmateurMatch.SystemContract.csproj" />
+  </ItemGroup>
+</Project>

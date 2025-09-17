@@ -157,6 +157,7 @@ echo 正在构建项目...
 dotnet build "!projFile!" --configuration Release
 if %errorlevel% neq 0 (
     echo 错误：项目构建失败
+    pause
     exit 2
 )
 echo.
@@ -166,6 +167,7 @@ echo 正在打包项目...
 dotnet pack "!projFile!" --configuration Release --include-symbols --output "!buildOutput!"
 if %errorlevel% neq 0 (
     echo 错误：项目打包失败
+    pause
     exit 3
 )
 echo.
@@ -199,6 +201,7 @@ if "!symbolsFile!"=="" (
 :: 检查是否有可用的包文件
 if "!nupkgFile!"=="" if "!symbolsFile!"=="" (
     echo 错误：未生成任何nupkg文件
+    pause
     exit 4
 )
 
@@ -214,6 +217,7 @@ echo.
 set /p "confirm=是否确认推送？(Y/N): "
 if /i not "!confirm!"=="Y" (
     echo 已取消推送
+    pause
     exit 5
 )
 
@@ -224,8 +228,7 @@ if %errorlevel% equ 0 (
     echo 推送成功
 ) else (
     echo 错误：推送失败
+    pause
     exit 6
 )
-echo.
-exit 0
     
