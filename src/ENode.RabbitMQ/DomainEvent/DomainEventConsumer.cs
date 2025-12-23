@@ -28,9 +28,9 @@ namespace ENode.RabbitMQ
         /// </summary>
         /// <param name="sendEventHandledMessage"></param>
         /// <returns></returns>
-        public DomainEventConsumer InitializeENode(bool sendEventHandledMessage = true)
+        public DomainEventConsumer InitializeENode(ConsumerSettings settings, bool sendEventHandledMessage = true)
         {
-            _sendReplyService = new SendReplyService("EventConsumerSendReplyService");
+            _sendReplyService = new SendReplyService("EventConsumerSendReplyService", settings);
             _jsonSerializer = ObjectContainer.Resolve<IJsonSerializer>();
             _eventSerializer = ObjectContainer.Resolve<IEventSerializer>();
             _messageProcessor = ObjectContainer.Resolve<IProcessingEventProcessor>();
@@ -48,7 +48,7 @@ namespace ENode.RabbitMQ
         /// <returns></returns>
         public DomainEventConsumer InitializeRabbitMQ(ConsumerSettings settings, bool autoConfig = true, bool sendEventHandledMessage = true)
         {
-            InitializeENode(sendEventHandledMessage);
+            InitializeENode(settings, sendEventHandledMessage);
             _consumer = new Consumer(settings, autoConfig);
             return this;
         }

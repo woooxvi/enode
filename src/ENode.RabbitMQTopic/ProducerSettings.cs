@@ -31,6 +31,7 @@ namespace RabbitMQTopic
 
                 //重连时间
                 //NetworkRecoveryInterval = config.NetworkRecoveryInterval,
+                ClientProvidedName = clientName,
 
                 //用户名
                 UserName = userName,
@@ -41,13 +42,7 @@ namespace RabbitMQTopic
                 Port = port,
             };
             if (!string.IsNullOrEmpty(hostName)) AmqpConnection = factory.CreateConnectionAsync().Result;
-            if (!string.IsNullOrWhiteSpace(clientName)) ClientName = clientName;
         }
-        /// <summary>
-        /// 客户端名
-        /// </summary>
-        public string ClientName { get; set; }
-
         /// <summary>
         /// AMQP Uri（AmqpUri、AmqpConnection，至少设置一个）
         /// </summary>

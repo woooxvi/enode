@@ -15,6 +15,9 @@ namespace ENode.RabbitMQ
     /// </summary>
     public static class ENodeExtensions
     {
+
+        public const string ReplyServiceMQExchange = "CommandResultExchange";
+
         public const string ReplySeviceMQTopic = "CommandResultProcessor.D.";
         /// <summary>
         /// Register Topic Provider

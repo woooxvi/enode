@@ -52,7 +52,6 @@ namespace RabbitMQTopic
                 throw new ArgumentException("AmqpConnection or AmqpUri must be set.");
             }
 
-            _clientName = string.IsNullOrEmpty(settings.ClientName) ? "Producer" : settings.ClientName;
             _amqpUri = settings.AmqpUri;
             if (settings.AmqpConnection != null)
             {
@@ -185,8 +184,7 @@ namespace RabbitMQTopic
                     }
                 }
 
-                _cleanIdleChannelTimer.Change(TimeSpan.FromSeconds(_cleanInterval),
-                    TimeSpan.FromSeconds(_cleanInterval));
+                _cleanIdleChannelTimer.Change(TimeSpan.FromSeconds(_cleanInterval), TimeSpan.FromSeconds(_cleanInterval));
             }
         }
 

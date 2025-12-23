@@ -39,14 +39,11 @@ namespace RabbitMQTopic
                 Password = password,
                 //端口
                 Port = port,
+
+                ClientProvidedName = clientName,
             };
             if (!string.IsNullOrEmpty(hostName)) AmqpConnection = factory.CreateConnectionAsync().Result;
-            if (!string.IsNullOrWhiteSpace(clientName)) ClientName = clientName;
         }
-        /// <summary>
-        /// 客户端名
-        /// </summary>
-        public string ClientName { get; set; }
 
         /// <summary>
         /// AMQP Uri（AmqpUri、AmqpConnection，至少设置一个）

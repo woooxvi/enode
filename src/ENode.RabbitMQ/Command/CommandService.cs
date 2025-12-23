@@ -145,7 +145,7 @@ namespace ENode.RabbitMQ
             Ensure.NotNull(realCommand.AggregateRootId, "aggregateRootId");
             var commandData = _jsonSerializer.Serialize(realCommand);
             var topic = _commandTopicProvider.GetTopic(realCommand);
-            var replyAddress = needReply && _commandResultProcessor != null ? _commandResultProcessor.BindingAddress.ToString() : null;
+            var replyAddress = needReply && _commandResultProcessor != null ? _commandResultProcessor.ClientName : null;
             var sagaId = realCommand.Items != null && realCommand.Items.ContainsKey(sagaIdCommandItemKey) ? realCommand.Items[sagaIdCommandItemKey] : null;
             var messageData = _jsonSerializer.Serialize(new CommandMessage
             {

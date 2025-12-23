@@ -1,0 +1,1 @@
+dotnet nuget delete ENode.RabbitMQTopic 1.2.6.1 -s http://localhost:5555/v3/index.json -k ****** --non-interactive

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
+using System.Security.AccessControl;
 using System.Text;
 using System.Threading.Tasks;
 using ECommon.Components;
@@ -29,13 +31,14 @@ namespace ENode.RabbitMQ
         private ILogger _logger;
         private Consumer _consumer;
 
+
         /// <summary>
         /// Initialize ENode
         /// </summary>
         /// <returns></returns>
-        public CommandConsumer InitializeENode()
+        private CommandConsumer InitializeENode(ConsumerSettings settings)
         {
-            _sendReplyService = new SendReplyService("CommandConsumerSendReplyService");
+            _sendReplyService = new SendReplyService("CommandConsumerSendReplyService", settings);
             _jsonSerializer = ObjectContainer.Resolve<IJsonSerializer>();
             _typeNameProvider = ObjectContainer.Resolve<ITypeNameProvider>();
             _commandProcessor = ObjectContainer.Resolve<ICommandProcessor>();
@@ -53,7 +56,7 @@ namespace ENode.RabbitMQ
         /// <returns></returns>
         public CommandConsumer InitializeRabbitMQ(ConsumerSettings settings, bool autoConfig = true)
         {
-            InitializeENode();
+            InitializeENode(settings);
             _consumer = new Consumer(settings, autoConfig);
             return this;
         }
@@ -159,7 +162,7 @@ namespace ENode.RabbitMQ
                     if (!string.IsNullOrEmpty(_commandMessage.ReplyAddress))
                     {
                         act?.SetTag("ReplyAddress", _commandMessage.ReplyAddress);
-                        _sendReplyService.SendReply((int)CommandReturnType.CommandExecuted, commandResult, _commandMessage.ReplyAddress, commandResult.CommandId).Wait();
+                        _sendReplyService.SendReply((int)CommandReturnType.CommandExecuted, commandResult, _commandMessage.ReplyAddress, commandResult.CommandId);
                         act?.SetTag("CommandResult", commandResult.Status);
                         act?.SetTag("CommandId", commandResult.CommandId);
                         act?.SetTag("AggregateRootId", commandResult.AggregateRootId);

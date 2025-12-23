@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using IRabbitMQConnection = RabbitMQ.Client.IConnection;
@@ -37,6 +38,11 @@ namespace RabbitMQTopic
 
         private const ushort ChannelError = 504;
         private const ushort ConnectionForced = 320;
+
+        /// <summary>
+        /// 消费者ClientName
+        /// </summary>
+        public string ClientName => _clientName;
         /// <summary>
         /// 消息已接受事件
         /// </summary>
@@ -64,7 +70,6 @@ namespace RabbitMQTopic
                 throw new ArgumentException("GroupName cann't use reserve keywords \"default\".");
             }
 
-            _clientName = string.IsNullOrEmpty(settings.ClientName) ? "Consumer" : settings.ClientName;
             _amqpUri = settings.AmqpUri;
             if (settings.AmqpConnection != null)
             {

@@ -13,15 +13,18 @@ using ECommon.Scheduling;
 using ECommon.Serializing;
 using ENode.Commanding;
 using Microsoft.Extensions.Caching.Memory;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
+using RabbitMQTopic;
 
 namespace ENode.RabbitMQ
 {
     /// <summary>
     /// Command Result Processor
     /// </summary>
-    public class CommandResultProcessor : IRequestHandler
+    public class CommandResultProcessor
     {
-        private SocketRemotingServer _remotingServer;
+        // private SocketRemotingServer _remotingServer;
         private ConcurrentDictionary<string, CommandTaskCompletionSource> _commandTaskDict;
         private BlockingCollection<CommandResult> _commandExecutedMessageLocalQueue;
         private BlockingCollection<DomainEventHandledMessage> _domainEventHandledMessageLocalQueue;
@@ -32,21 +35,32 @@ namespace ENode.RabbitMQ
         private bool _started;
         private MemoryCache _cache;
         private MemoryCacheEntryOptions _cacheOption;
+        // private Consumer _producerReplyReceive;
+
+        public string ClientName => _settings?.AmqpConnection?.ClientProvidedName;
+
+        private ProducerSettings _settings;
+        private IChannel _replyReceiver;
+        // public string ClientName => _producerReplyReceive?.ClientName;
+
+        private const ushort ChannelError = 504;
+        private const ushort ConnectionForced = 320;
 
         /// <summary>
         /// BindingAddress for receive command result reply.
         /// </summary>
-        public IPEndPoint BindingAddress { get; private set; }
+        // public IPEndPoint BindingAddress { get; private set; }
         // public IPEndPoint ReplyAddress { get; private set; }
-        public string RedisConnection { get; set; }
+
+
         /// <summary>
-        /// Initialize
+        /// 初始化Command结果处理器
         /// </summary>
-        /// <param name="bindingAddress"></param>
+        /// <param name="settings">生产者的设置，会使用其中的rabbitmq-client</param>
         /// <returns></returns>
-        public CommandResultProcessor Initialize(IPEndPoint bindingAddress, string redisConnection = null)
+        public CommandResultProcessor Initialize(ProducerSettings settings)
         {
-            _remotingServer = new SocketRemotingServer("CommandResultProcessor.RemotingServer", bindingAddress);
+            // _remotingServer = new SocketRemotingServer("CommandResultProcessor.RemotingServer", bindingAddress);
             _commandTaskDict = new ConcurrentDictionary<string, CommandTaskCompletionSource>();
             _commandExecutedMessageLocalQueue = new BlockingCollection<CommandResult>(new ConcurrentQueue<CommandResult>());
             _commandExecutedMessageWorker = new Worker("ProcessExecutedCommandMessage", () => ProcessExecutedCommandMessage(_commandExecutedMessageLocalQueue.Take()));
@@ -54,8 +68,9 @@ namespace ENode.RabbitMQ
             _domainEventHandledMessageWorker = new Worker("ProcessDomainEventHandledMessage", () => ProcessDomainEventHandledMessage(_domainEventHandledMessageLocalQueue.Take()));
             _jsonSerializer = ObjectContainer.Resolve<IJsonSerializer>();
             _logger = ObjectContainer.Resolve<ILoggerFactory>().Create(GetType().FullName);
-            BindingAddress = bindingAddress;
-            RedisConnection = redisConnection;
+            _settings = settings;
+            // _producerReplyReceive = new Consumer(settings, true);
+            // BindingAddress = bindingAddress;
             // ReplyAddress = replyAddress;
 
             _cache = new MemoryCache(new MemoryCacheOptions());
@@ -111,22 +126,102 @@ namespace ENode.RabbitMQ
         {
             if (_started) return this;
 
-            _remotingServer.Start();
+            // _remotingServer.Start();
             _commandExecutedMessageWorker.Start();
             _domainEventHandledMessageWorker.Start();
 
-            _remotingServer.RegisterRequestHandler((int)CommandReturnType.CommandExecuted, this);
-            _remotingServer.RegisterRequestHandler((int)CommandReturnType.EventHandled, this);
+            // _remotingServer.RegisterRequestHandler((int)CommandReturnType.CommandExecuted, this);
+            // _remotingServer.RegisterRequestHandler((int)CommandReturnType.EventHandled, this);
+            _replyReceiver = _settings.AmqpConnection.CreateChannelAsync().Result;
+            _replyReceiver.ExchangeDeclareAsync(ENodeExtensions.ReplyServiceMQExchange, ExchangeType.Direct, true, false, null).Wait();
 
-            var channel = StackExchange.Redis.RedisChannel.Literal(ENodeExtensions.ReplySeviceMQTopic + BindingAddress.ToString());
-            RedisHelper.GetInstance(connString: RedisConnection).Subscribe(channel, (c, json) =>
+
+            // 设置队列参数：30分钟(1800000毫秒)无消费者则自动删除
+            var queueArguments = new Dictionary<string, object>
             {
-                var request = Newtonsoft.Json.JsonConvert.DeserializeObject<RedisRemotingRequest>(json);
-                if (request != null) InternalHandleRequest(request);
-            });
+                { "x-expires", 10 * 60 * 1000 },
+                // 可选：如果希望队列在最后一个消费者断开连接后立即删除，可添加此参数
+                // { "auto_delete", true }
+            };
 
+            _replyReceiver.QueueDeclareAsync(this.ClientName, true, false, false, queueArguments).Wait();
+            _replyReceiver.QueueBindAsync(this.ClientName, ENodeExtensions.ReplyServiceMQExchange, this.ClientName, null).Wait();
+
+            _replyReceiver.BasicQosAsync(0, 1, false).Wait();
+            var consumer = new AsyncEventingBasicConsumer(_replyReceiver);
+
+            try
+            {
+                consumer.ReceivedAsync += (sender, e) =>
+                {
+                    var currentConsumer = ((AsyncEventingBasicConsumer)sender);
+                    var currentChannel = currentConsumer.Channel;
+
+                    var currentTopic = e.Exchange.IndexOf("-delayed", StringComparison.Ordinal) > 0
+                        ? e.Exchange.Substring(0,
+                            e.Exchange.LastIndexOf("-delayed", StringComparison.Ordinal))
+                        : e.Exchange;
+                    var request = _jsonSerializer.Deserialize<RedisRemotingRequest>(Encoding.UTF8.GetString(e.Body.ToArray()));
+                    InternalHandleRequest(request);
+                    currentChannel.BasicAckAsync(e.DeliveryTag, false);
+                    // var currentQueueIndex = consumers.First(w => w.Value.Channel == currentChannel).Key;
+                    // var context = new MessageHandlingTransportationContext(currentTopic, currentQueueIndex,
+                    //     _groupName, _replyReceiver, e.DeliveryTag, new Dictionary<string, object>
+                    //     {
+                    //         {MessagePropertyConstants.MESSAGE_ID, e.BasicProperties.MessageId},
+                    //         {MessagePropertyConstants.MESSAGE_TYPE, e.BasicProperties.Type},
+                    //         {
+                    //             MessagePropertyConstants.TIMESTAMP,
+                    //             e.BasicProperties.Timestamp.UnixTime == 0
+                    //                 ? DateTime.Now
+                    //                 : DateTime2UnixTime.FromUnixTime(e.BasicProperties.Timestamp.UnixTime)
+                    //         },
+                    //         {
+                    //             MessagePropertyConstants.CONTENT_TYPE,
+                    //             string.IsNullOrEmpty(e.BasicProperties.ContentType)
+                    //                 ? "text/json"
+                    //                 : e.BasicProperties.ContentType
+                    //         },
+                    //         {MessagePropertyConstants.BODY, e.Body},
+                    //         {MessagePropertyConstants.ROUTING_KEY, e.RoutingKey}
+                    //     });
+                    // try
+                    // {
+                    //     OnMessageReceived.Invoke(this, new MessageReceivedEventArgs(context));
+                    // }
+                    // catch
+                    // {
+                    //     // ignored
+                    // }
+                    return Task.CompletedTask;
+                };
+
+                consumer.ShutdownAsync += (sender, e) =>
+                {
+                    var currentConsumer = ((AsyncEventingBasicConsumer)sender);
+                    var currentChannel = currentConsumer.Channel;
+                    if (e.ReplyCode == ConnectionForced)
+                    {
+                        return Task.CompletedTask;
+                    }
+
+                    while (e.ReplyCode == ChannelError && !currentChannel.IsOpen)
+                    {
+                        Thread.Sleep(1000);
+                    }
+
+                    return Task.CompletedTask;
+                };
+
+                _replyReceiver.BasicConsumeAsync(this.ClientName, false,
+                        $"{this.ClientName}_consumer",
+                        new Dictionary<string, object>(), consumer).Wait();
+            }
+            finally
+            {
+                // consumers.TryAdd(queueIndex, consumer);
+            }
             _started = true;
-
             return this;
         }
 
@@ -136,16 +231,13 @@ namespace ENode.RabbitMQ
         /// <returns></returns>
         public CommandResultProcessor Shutdown()
         {
-            _remotingServer.Shutdown();
+            // _remotingServer.Shutdown();
+            _replyReceiver.CloseAsync().Wait();
             _commandExecutedMessageWorker.Stop();
             _domainEventHandledMessageWorker.Stop();
             return this;
         }
 
-        RemotingResponse IRequestHandler.HandleRequest(IRequestHandlerContext context, RemotingRequest remotingRequest)
-        {
-            return InternalHandleRequest(remotingRequest);
-        }
 
         private RemotingResponse InternalHandleRequest(RemotingRequest remotingRequest)
         {
